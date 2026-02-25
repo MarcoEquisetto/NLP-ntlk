@@ -6,13 +6,13 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 
-# ==========================================
-# 1. USER INTERFACE (CLI)
-# ==========================================
+# CLI
 print("\n" + "="*40)
 print("  NLP Reuters 3D Clustering Animation")
 print("="*40)
 
+# User input that defines how many documents to process and how many clusters to create. 
+# Defaults are set to 300 documents and 3 clusters, but users can specify their own values
 try:
     doc_input = input("How many articles to process? (Default 300, max ~10000): ")
     num_docs = int(doc_input) if doc_input.strip() else 300
@@ -26,9 +26,7 @@ except ValueError:
 
 print(f"\nInitializing with {num_docs} documents and {k} clusters...\n")
 
-# ==========================================
-# 2. DATA LOADING & PROCESSING
-# ==========================================
+# Load the Reuters corpus and preprocess it to create a TF-IDF matrix
 try:
     nltk.data.find('corpora/reuters.zip')
 except LookupError:
@@ -43,13 +41,12 @@ print("Computing TF-IDF...")
 vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
 X = vectorizer.fit_transform(docs).toarray()
 
+# Reduce dimensionality to 3D for visualization purposes using PCA
 print("Reducing dimensionality to 3D...")
 pca = PCA(n_components=3)
 target_X = pca.fit_transform(X) 
 
-# ==========================================
 # 3. CLUSTERING (Cosine Similarity)
-# ==========================================
 def cosine_distance(points, centers):
     norm_points = np.linalg.norm(points, axis=1, keepdims=True)
     norm_centers = np.linalg.norm(centers, axis=1)
@@ -73,9 +70,8 @@ for _ in range(50):
         break
     centroids = new_centroids
 
-# ==========================================
-# 4. 3D VISUALIZATION SETUP
-# ==========================================
+
+# 3D ANIMATION SETUP
 min_x, max_x = np.min(target_X[:, 0]), np.max(target_X[:, 0])
 min_y, max_y = np.min(target_X[:, 1]), np.max(target_X[:, 1])
 max_z = np.max(target_X[:, 2])
@@ -112,14 +108,11 @@ ax.set_xlabel('PCA X'); ax.set_ylabel('PCA Y'); ax.set_zlabel('PCA Z')
 cluster_colors = plt.cm.rainbow(np.linspace(0, 1, k))
 point_colors = [cluster_colors[label] for label in labels]
 
-centroid_scatter = ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], 
-                              c=cluster_colors, s=250, marker='*', zorder=4, edgecolors='black')
+centroid_scatter = ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], c=cluster_colors, s=250, marker='*', zorder=4, edgecolors='black')
 
-scatter = ax.scatter(current_X[:, 0], current_X[:, 1], current_X[:, 2], 
-                     c=point_colors, s=20, zorder=3, edgecolors='w', linewidth=0.5)
+scatter = ax.scatter(current_X[:, 0], current_X[:, 1], current_X[:, 2], c=point_colors, s=20, zorder=3, edgecolors='w', linewidth=0.5)
 
-lines = [ax.plot([], [], [], c=cluster_colors[labels[i]], lw=0.5, alpha=0.3, zorder=1)[0] 
-         for i in range(target_X.shape[0])]
+lines = [ax.plot([], [], [], c=cluster_colors[labels[i]], lw=0.5, alpha=0.3, zorder=1)[0] for i in range(target_X.shape[0])]
 
 def update(frame):
     global current_X
@@ -139,7 +132,7 @@ def update(frame):
     return [scatter] + lines
 
 print("Rendering 3D animation window...")
-ani = animation.FuncAnimation(fig, update, frames=150, interval=50, blit=False)
+ani = animation.FuncAnimation(fig, update, frames=150, interval=30, blit=False)
 
 plt.tight_layout()
 plt.show()
