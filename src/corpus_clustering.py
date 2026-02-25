@@ -14,7 +14,7 @@ except LookupError:
     nltk.download('punkt')
 
 print("Loading Reuters corpus subset...")
-fileids = reuters.fileids()[:300]
+fileids = reuters.fileids()[:500]
 docs = [reuters.raw(fileid) for fileid in fileids]
 
 # 2. Vectorize the text using TF-IDF
@@ -99,7 +99,7 @@ ax.set_xlabel('PCA X')
 ax.set_ylabel('PCA Y')
 ax.set_zlabel('PCA Z')
 
-colors = ['#FF5733', '#33C1FF', '#8D33FF']
+colors = plt.cm.rainbow(np.linspace(0, 1, k))
 point_colors = [colors[label] for label in labels]
 
 centroid_scatter = ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], c=colors, s=250, marker='*', zorder=4, edgecolors='black')
