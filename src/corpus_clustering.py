@@ -6,7 +6,29 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 
-# 1. Download necessary NLTK data
+# ==========================================
+# 1. USER INTERFACE (CLI)
+# ==========================================
+print("\n" + "="*40)
+print("  NLP Reuters 3D Clustering Animation")
+print("="*40)
+
+try:
+    doc_input = input("How many articles to process? (Default 300, max ~10000): ")
+    num_docs = int(doc_input) if doc_input.strip() else 300
+    
+    k_input = input("How many clusters (k) to create? (Default 3): ")
+    k = int(k_input) if k_input.strip() else 3
+except ValueError:
+    print("\n[!] Invalid input detected. Defaulting to 300 articles and 3 clusters.")
+    num_docs = 300
+    k = 3
+
+print(f"\nInitializing with {num_docs} documents and {k} clusters...\n")
+
+# ==========================================
+# 2. DATA LOADING & PROCESSING
+# ==========================================
 try:
     nltk.data.find('corpora/reuters.zip')
 except LookupError:
@@ -14,20 +36,20 @@ except LookupError:
     nltk.download('punkt')
 
 print("Loading Reuters corpus subset...")
-fileids = reuters.fileids()[:500]
+fileids = reuters.fileids()[:num_docs]
 docs = [reuters.raw(fileid) for fileid in fileids]
 
-# 2. Vectorize the text using TF-IDF
 print("Computing TF-IDF...")
 vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
 X = vectorizer.fit_transform(docs).toarray()
 
-# 3. Reduce dimensionality to 3D for spatial visualization
 print("Reducing dimensionality to 3D...")
 pca = PCA(n_components=3)
 target_X = pca.fit_transform(X) 
 
-# 4. Pre-compute Custom K-Means using Cosine Similarity
+# ==========================================
+# 3. CLUSTERING (Cosine Similarity)
+# ==========================================
 def cosine_distance(points, centers):
     norm_points = np.linalg.norm(points, axis=1, keepdims=True)
     norm_centers = np.linalg.norm(centers, axis=1)
@@ -38,13 +60,11 @@ def cosine_distance(points, centers):
     return 1 - cos_similarity
 
 print("Pre-computing clusters...")
-k = 3
 np.random.seed(42)
 initial_indices = np.random.choice(target_X.shape[0], k, replace=False)
 centroids = target_X[initial_indices]
 labels = np.zeros(target_X.shape[0])
 
-# Run K-means to convergence
 for _ in range(50): 
     distances = cosine_distance(target_X, centroids)
     labels = np.argmin(distances, axis=1)
@@ -53,7 +73,9 @@ for _ in range(50):
         break
     centroids = new_centroids
 
-# 5. Set up initial positions
+# ==========================================
+# 4. 3D VISUALIZATION SETUP
+# ==========================================
 min_x, max_x = np.min(target_X[:, 0]), np.max(target_X[:, 0])
 min_y, max_y = np.min(target_X[:, 1]), np.max(target_X[:, 1])
 max_z = np.max(target_X[:, 2])
@@ -65,54 +87,43 @@ current_X = np.column_stack((
     np.full(target_X.shape[0], min_z - 0.5) 
 ))
 
-# 6. Plotting Setup
 fig = plt.figure(figsize=(10, 8))
 ax = fig.add_subplot(111, projection='3d')
-ax.set_title("Reuters Clustering (Cosine Similarity)\nClick and Drag to Rotate Camera!", pad=20)
+ax.set_title(f"Reuters Clustering (Cosine Similarity)\n{num_docs} Docs, {k} Clusters | Click & Drag to Rotate", pad=20)
 
-# --- NEW: Spatial Reference Styling ---
-# Make the background panes transparent so it doesn't look boxed in
-ax.xaxis.pane.fill = False
-ax.yaxis.pane.fill = False
-ax.zaxis.pane.fill = False
-
-# Make the pane edges invisible or very faint
+# Spatial Reference Styling
+ax.xaxis.pane.fill = ax.yaxis.pane.fill = ax.zaxis.pane.fill = False
 ax.xaxis.pane.set_edgecolor('w')
 ax.yaxis.pane.set_edgecolor('w')
 ax.zaxis.pane.set_edgecolor('w')
-
-# Style the grid lines to be subtle
 ax.grid(True, linestyle=':', alpha=0.3, color='gray')
 
-# Draw explicit reference lines (X, Y, Z axes) passing through the origin (0,0,0)
+# Origin crosshairs
 ax.plot([min_x, max_x], [0, 0], [0, 0], color='black', linestyle='--', alpha=0.5, lw=1.5, zorder=0)
 ax.plot([0, 0], [min_y, max_y], [0, 0], color='black', linestyle='--', alpha=0.5, lw=1.5, zorder=0)
 ax.plot([0, 0], [0, 0], [min_z, max_z], color='black', linestyle='--', alpha=0.5, lw=1.5, zorder=0)
-# --------------------------------------
 
 ax.set_xlim(min_x - 0.1, max_x + 0.1)
 ax.set_ylim(min_y - 0.1, max_y + 0.1)
 ax.set_zlim(min_z - 0.6, max_z + 0.1)
+ax.set_xlabel('PCA X'); ax.set_ylabel('PCA Y'); ax.set_zlabel('PCA Z')
 
-# Axis labels for orientation
-ax.set_xlabel('PCA X')
-ax.set_ylabel('PCA Y')
-ax.set_zlabel('PCA Z')
+# Generate dynamic colors based on user's 'k' input
+cluster_colors = plt.cm.rainbow(np.linspace(0, 1, k))
+point_colors = [cluster_colors[label] for label in labels]
 
-colors = plt.cm.rainbow(np.linspace(0, 1, k))
-point_colors = [colors[label] for label in labels]
+centroid_scatter = ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], 
+                              c=cluster_colors, s=250, marker='*', zorder=4, edgecolors='black')
 
-centroid_scatter = ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], c=colors, s=250, marker='*', zorder=4, edgecolors='black')
+scatter = ax.scatter(current_X[:, 0], current_X[:, 1], current_X[:, 2], 
+                     c=point_colors, s=20, zorder=3, edgecolors='w', linewidth=0.5)
 
-scatter = ax.scatter(current_X[:, 0], current_X[:, 1], current_X[:, 2], c=point_colors, s=20, zorder=3, edgecolors='w', linewidth=0.5)
-
-lines = [ax.plot([], [], [], c=colors[labels[i]], lw=0.5, alpha=0.3, zorder=1)[0] 
+lines = [ax.plot([], [], [], c=cluster_colors[labels[i]], lw=0.5, alpha=0.3, zorder=1)[0] 
          for i in range(target_X.shape[0])]
 
 def update(frame):
     global current_X
-    
-    smoothness = 0.1 
+    smoothness = 0.04 
     current_X = current_X * (1 - smoothness) + target_X * smoothness
     
     scatter._offsets3d = (current_X[:, 0], current_X[:, 1], current_X[:, 2])
@@ -127,8 +138,8 @@ def update(frame):
         
     return [scatter] + lines
 
-print("Starting animation...")
-ani = animation.FuncAnimation(fig, update, frames=150, interval=20, blit=False)
+print("Rendering 3D animation window...")
+ani = animation.FuncAnimation(fig, update, frames=150, interval=50, blit=False)
 
 plt.tight_layout()
 plt.show()
